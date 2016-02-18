@@ -1,0 +1,28 @@
+{{template "header" .}}
+
+       <title> 首页 - 我的 Beego 博客 </title>
+    </head>
+
+    <body>
+        <div class="navbar navbar-default navbar-fixed-top">
+            {{template "navbar" .}}
+        </div>
+        <br><br>
+        <div class="container">
+            {{range .Topics}}
+            <div class="page-header">
+                <a href="topic/view/{{.Id}}"> <h1>{{.Title}}</h1></a>
+                <h6>文章发表于{{.Created}} ，共有 {{.Views}} 次浏览 ，{{.RelayCount}} 个评论。</h6>
+                <p>
+                   {{.Content}}
+                </p>
+
+            </div>
+            {{end}}
+        </div>
+        <script type="text/javascript" src="http://cdn.staticfile.org/jquery/3.0.0-alpha1/jquery.min.js"></script>
+        <script type="text/javascript" src="/static/js/bootstrap.min.js"></script>
+        <!-- <script type="text/javascript" src=""></script> -->
+
+    </body>
+</html>
