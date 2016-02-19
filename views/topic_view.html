@@ -16,8 +16,14 @@
     {{.Topic.Content}}
 </div>
 <div class="container">
+    {{$tid := .Topic.Id}}
+    {{$IsLogin := .IsLogin}}
+    {{range .Replies}}
+    <h3>{{.Name}} <small>{{.Created}}</small>{{if $IsLogin}}<a href="/reply/delete?tid={{$tid}}&rid={{.Id}}">删除</a> {{end}}</h3>
+        {{.Content}}
+    {{end}}
     <h3>本文回复</h3>
-    <form method="post" action="relay/add">
+    <form method="post" action="/reply/add">
         <input type="hidden" name="tid" value="{{.Topic.Id}}">
         <div class="form-group">
             <label>显示昵称：</label>

@@ -42,7 +42,7 @@ func (this *TopicController) Get () {
 	this.Data["IsTopic"]=true
 	this.Data["IsLogin"]=checkAccount(this.Ctx)
 	this.TplName="topic.html"
-	topics,err:=models.GetAllTopics(false)
+	topics,err:=models.GetAllTopics("",false)
 	if err!=nil {
 		beego.Error(err.Error())
 	} else {
@@ -67,6 +67,16 @@ func (this *TopicController) View()  {
 
 	this.Data["Topic"]=topic
 	this.Data["Tid"]=m["0"]
+
+	replies,err:=models.GetAllReplies(m["0"])
+	if err != nil {
+		beego.Error(err)
+		return
+	}
+
+	this.Data["Replies"]=replies
+	this.Data["IsLogin"]=checkAccount(this.Ctx)
+
 }
 
 

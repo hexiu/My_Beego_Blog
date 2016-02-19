@@ -11,6 +11,7 @@ import (
 	"path"
 	"fmt"
 	"strconv"
+
 )
 
 const (
@@ -40,52 +41,26 @@ type Topic struct {
 	Updated 		time.Time  	`orm:"index"`
 	Views 			int64 		`orm:"index"`
 	Author  		string
-	RelayTime 		time.Time	`orm:"index"`
-	RelayCount 		int64
-	RelayLastUserId	int64
+	ReplyTime 		time.Time	`orm:"index"`
+	ReplyCount 		int64
+	ReplyLastUserId	int64
 }
 
-
-func AddTopic(title,category,content string) error {
-	o:=orm.NewOrm()
-
-	topic:=&Topic{
-		Title:title,
-		Category:category,
-		Content:content,
-		Created:time.Now(),
-		Updated:time.Now(),
-		RelayTime:time.Now(),
-	}
-
-	_,err:=o.Insert(topic)
-	return err
+type Comment struct {
+	Id 			int64
+	Tid 		int64
+	Name		string
+	Content 	string			`orm:"size(1000)"`
+	Created		time.Time 		`orm:"index"`
 }
-
-func GetAllTopics(isDesc bool) ([]*Topic,error)  {
-	o:=orm.NewOrm()
-	topics:=make([]*Topic,0)
-	qs:=o.QueryTable("topic")
-
-	var err error
-
-	if isDesc {
-		_,err=qs.OrderBy("-created").All(&topics)
-	}else{
-		_,err=qs.All(&topics)
-	}
-
-	return topics,err
-}
-
-
 
 func RegisterDB()  {
 	if(!com.IsExist(_DB_NAME)){
 		os.MkdirAll(path.Dir(_DB_NAME),os.ModePerm)
 		os.Create(_DB_NAME)
 	}
-	orm.RegisterModel(new(Category),new(Topic))
+	//注册模型
+	orm.RegisterModel(new(Category),new(Topic),new(Comment))
 	orm.RegisterDriver(_SQLITE3_DRIVER,orm.DRSqlite)
 	orm.RegisterDataBase("default",_SQLITE3_DRIVER,_DB_NAME,10)
 }
@@ -143,6 +118,43 @@ func GetAllCategories()  ([]*Category,error)  {
 }
 
 
+
+func AddTopic(title,category,content string) error {
+	o:=orm.NewOrm()
+
+	topic:=&Topic{
+		Title:title,
+		Category:category,
+		Content:content,
+		Created:time.Now(),
+		Updated:time.Now(),
+		ReplyTime:time.Now(),
+	}
+
+	_,err:=o.Insert(topic)
+	return err
+}
+
+func GetAllTopics(cate string, isDesc bool) ([]*Topic,error)  {
+	o:=orm.NewOrm()
+	topics:=make([]*Topic,0)
+	qs:=o.QueryTable("topic")
+
+	var err error
+
+	if isDesc {
+		if len(cate)>0 {
+			qs=qs.Filter("category",cate)
+		}
+		_,err=qs.OrderBy("-created").All(&topics)
+	}else{
+		_,err=qs.All(&topics)
+	}
+
+	return topics,err
+}
+
+
 func GetTopic(tid string) (*Topic,error) {
 	tidNum,err:=strconv.ParseInt(tid,10,64)
 	if err!=nil {
@@ -189,4 +201,49 @@ func DeleteTopic(tid string) error {
 	topic:=&Topic{Id: tidNum}
 	_,err=o.Delete(topic)
 	return err
+}
+
+
+func AddReply(tid,nickname,content string) error {
+	tidNum,err:=strconv.ParseInt(tid,10,64)
+	if err!=nil {
+		return err
+	}
+	reply:=&Comment{
+		Tid:tidNum,
+		Name:nickname,
+		Content:content,
+		Created:time.Now(),
+	}
+
+	o:=orm.NewOrm()
+	_,err =o.Insert(reply)
+	return err
+}
+
+func GetAllReplies(tid string) (replies []*Comment ,err error) {
+	tidNum,err:=strconv.ParseInt(tid,10,64)
+	if err!=nil {
+		return nil,err
+	}
+
+	replies = make([]*Comment,0)
+	o:=orm.NewOrm()
+	qs:=o.QueryTable("comment")
+	_,err=qs.Filter("tid",tidNum).All(&replies)
+	return replies,err
+}
+
+func DeleteReply(rid string) error  {
+	ridNum,err:=strconv.ParseInt(rid,10,64)
+	if err!=nil {
+		return err
+	}
+
+	o:=orm.NewOrm()
+
+	reply:=&Comment{Id:ridNum}
+	_,err=o.Delete(reply)
+	return err
+
 }
