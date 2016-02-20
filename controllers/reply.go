@@ -15,7 +15,7 @@ func (this *ReplyController) Add() {
 	if err != nil {
 		beego.Error(err)
 	}
-	
+
 	this.Redirect("/topic/view/"+tid,302)
 
 }
@@ -25,7 +25,7 @@ func (this *ReplyController) Delete ()  {
 		return
 	}
 	tid:=this.Input().Get("tid")
-	err:= models.DeleteReply(this.Input().Get("rid"))
+	err:= models.DeleteReply(this.Input().Get("rid"),tid)
 	if err != nil{
 		beego.Error(err)
 	}

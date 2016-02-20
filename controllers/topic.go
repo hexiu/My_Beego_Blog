@@ -3,6 +3,8 @@ package controllers
 import  (
 	"github.com/astaxie/beego"
 	"beego/models"
+	"strings"
+	"path"
 )
 
 type TopicController  struct{
@@ -18,14 +20,35 @@ func (this *TopicController) Post ()  {
 
 	title := this.Input().Get("title")
 	category := this.Input().Get("category")
+	label:=this.Input().Get("label")
 	content := this.Input().Get("content")
 	tid := this.Input().Get("tid")
-	var err error
+
+	//获取附件
+	_,fh,err:=this.GetFile("attachment")
+	if err!= nil {
+		beego.Error(err)
+	}
+	var attachment string
+	if fh!=nil {
+		//上传文件
+		attachment = fh.Filename
+		beego.Info(attachment)
+		err:= this.SaveToFile("attachment",path.Join("attachment",attachment)) //可以使用相对路径
+		// filename : tmp.go
+		// attachement/tmp.go
+		if err != nil {
+			beego.Error(err)
+		}
+
+	}
+
+
 	if len(tid)==0{
-		err=models.AddTopic(title,category,content)
+		err=models.AddTopic(title,category,label,content,attachment)
 
 	}else{
-		err=models.ModifyTopic(tid,title,category,content)
+		err=models.ModifyTopic(tid,title,category,label,content,attachment)
 	}
 
 	if err!=nil {
@@ -42,7 +65,7 @@ func (this *TopicController) Get () {
 	this.Data["IsTopic"]=true
 	this.Data["IsLogin"]=checkAccount(this.Ctx)
 	this.TplName="topic.html"
-	topics,err:=models.GetAllTopics("",false)
+	topics,err:=models.GetAllTopics("","",false)
 	if err!=nil {
 		beego.Error(err.Error())
 	} else {
@@ -65,15 +88,16 @@ func (this *TopicController) View()  {
 		return
 	}
 
-	this.Data["Topic"]=topic
-	this.Data["Tid"]=m["0"]
-
 	replies,err:=models.GetAllReplies(m["0"])
+
 	if err != nil {
 		beego.Error(err)
 		return
 	}
 
+	this.Data["Topic"]=topic
+	this.Data["Labels"]=strings.Split(topic.Labels, " ")
+	this.Data["Tid"]=m["0"]
 	this.Data["Replies"]=replies
 	this.Data["IsLogin"]=checkAccount(this.Ctx)
 

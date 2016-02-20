@@ -17,7 +17,7 @@ func (c *MainController) Get() {
 	c.TplName = "home.html"
 	c.Data["IsLogin"]=checkAccount(c.Ctx)
 
-	topics,err:=models.GetAllTopics(c.Input().Get("cate"),true)
+	topics,err:=models.GetAllTopics(c.Input().Get("cate"),c.Input().Get("label"),true)
 	if err!=nil {
 		beego.Error(err.Error())
 	} else {

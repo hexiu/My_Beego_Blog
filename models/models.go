@@ -11,7 +11,7 @@ import (
 	"path"
 	"fmt"
 	"strconv"
-
+	"strings"
 )
 
 const (
@@ -35,6 +35,7 @@ type Topic struct {
 	Uid 			int64
 	Title 			string
 	Category        string
+	Labels 			string
 	Content 		string 		`orm:"size(5000)"`
 	Attachment 		string
 	Created			time.Time 	`orm:"index"`
@@ -119,23 +120,50 @@ func GetAllCategories()  ([]*Category,error)  {
 
 
 
-func AddTopic(title,category,content string) error {
+func AddTopic(title,category,label,content,attachment string) error {
+	//处理标签
+	label="$"+strings.Join(strings.Split(label," "),"#$")+"#"
+	//空格作为多个标签的分隔符
+	// beego
+	//$beego#
+	//orm
+	//$beego#$orm#
+
+	// bee   beego
+
+
 	o:=orm.NewOrm()
 
 	topic:=&Topic{
 		Title:title,
 		Category:category,
+		Labels:label,
 		Content:content,
+		Attachment:attachment,
 		Created:time.Now(),
 		Updated:time.Now(),
 		ReplyTime:time.Now(),
 	}
 
 	_,err:=o.Insert(topic)
-	return err
+	if err != nil {
+		return err
+	}
+
+	cate:=new(Category)
+	qs:=o.QueryTable("category")
+	err=qs.Filter("title",category).One(cate)
+	if err == nil {
+		//如果不存在，简单的忽略更新操作，存在更新
+		cate.TopicCount++
+		_,err=o.Update(cate)
+	}
+
+	return 	err
+
 }
 
-func GetAllTopics(cate string, isDesc bool) ([]*Topic,error)  {
+func GetAllTopics(cate,label string, isDesc bool) ([]*Topic,error)  {
 	o:=orm.NewOrm()
 	topics:=make([]*Topic,0)
 	qs:=o.QueryTable("topic")
@@ -145,6 +173,9 @@ func GetAllTopics(cate string, isDesc bool) ([]*Topic,error)  {
 	if isDesc {
 		if len(cate)>0 {
 			qs=qs.Filter("category",cate)
+		}
+		if len(label)>0 {
+			qs=qs.Filter("labels__contains","$"+label+"#")
 		}
 		_,err=qs.OrderBy("-created").All(&topics)
 	}else{
@@ -160,6 +191,7 @@ func GetTopic(tid string) (*Topic,error) {
 	if err!=nil {
 		return nil,err
 	}
+
 	o:=orm.NewOrm()
 	topic:=new(Topic)
 
@@ -170,25 +202,67 @@ func GetTopic(tid string) (*Topic,error) {
 	}
 	topic.Views++
 	_,err=o.Update(topic)
+
+	topic.Labels=strings.Replace(strings.Replace(topic.Labels,"#"," ",-1),"$","",-1)
+
 	return topic,err
 }
 
 
-func ModifyTopic(tid,title,category,content string) error {
+func ModifyTopic(tid,title,category,label,content,attachment string) error {
+
+	label="$"+strings.Join(strings.Split(label," "),"#$")+"#"
 	tidNum,err:=strconv.ParseInt(tid,10,64)
 	if err!=nil {
 		return err
 	}
+
+	var oldCate,oldAttach string
+
 	o:=orm.NewOrm()
 	topic:=&Topic{ Id: tidNum}
 	if o.Read(topic) == nil {
+		oldCate=topic.Category
+		oldAttach=topic.Attachment
 		topic.Title=title
 		topic.Category=category
+		topic.Labels=label
 		topic.Content=content
+		topic.Attachment=attachment
 		topic.Updated=time.Now()
-		o.Update(topic)
+		_,err:=o.Update(topic)
+		if err != nil {
+			return err
+		}
 	}
-	return err
+
+	//删除附件
+	if len(oldAttach)>0 {
+		os.Remove(path.Join("attachment",oldAttach))
+	}
+
+	//更新分类统计
+	if len(oldCate)>0 {
+		cate:=new(Category)
+		qs:=o.QueryTable("category")
+		err=qs.Filter("title",oldCate).One(cate)
+		if err == nil {
+			//如果不存在，简单的忽略更新操作，存在更新
+			cate.TopicCount--
+			_,err=o.Update(cate)
+		}
+	}
+
+	cate:=new(Category)
+	qs:=o.QueryTable("category")
+	err=qs.Filter("title",category).One(cate)
+	if err == nil {
+		//如果不存在，简单的忽略更新操作，存在更新
+		cate.TopicCount++
+		_,err=o.Update(cate)
+	}
+
+	return nil
 }
 
 func DeleteTopic(tid string) error {
@@ -197,9 +271,27 @@ func DeleteTopic(tid string) error {
 		return err
 	}
 
+	var	oldCate string
+
 	o:=orm.NewOrm()
 	topic:=&Topic{Id: tidNum}
-	_,err=o.Delete(topic)
+	if o.Read(topic) == nil {
+		oldCate=topic.Category
+		_,err:=o.Delete(topic)
+		if err!=nil {
+			return err
+		}
+		if len(oldCate)>0 {
+			cate:=new(Category)
+			qs:=o.QueryTable("category")
+			err:=qs.Filter("title",oldCate).One(cate)
+			if err == nil {
+				cate.TopicCount--
+				_,err=o.Update(cate)
+			}
+		}
+	}
+
 	return err
 }
 
@@ -218,6 +310,29 @@ func AddReply(tid,nickname,content string) error {
 
 	o:=orm.NewOrm()
 	_,err =o.Insert(reply)
+	if err!=nil {
+		return err
+	}
+
+	topic:=new(Topic)
+
+	/*也可以这样实现
+		topic := &Topic{Id:tidNum}
+		if o.Read(topic)==nil {
+			topic.ReplyCount++
+			topic.ReplyTime=time.Now()
+		}
+		_,err=o.Update(topic)
+		return err
+	*/
+	qs:=o.QueryTable("topic")
+	err=qs.Filter("id",tidNum).One(topic)
+	if err!=nil{
+		return err
+	}
+	topic.ReplyCount++
+	topic.ReplyTime=time.Now()
+	_,err=o.Update(topic)
 	return err
 }
 
@@ -234,16 +349,65 @@ func GetAllReplies(tid string) (replies []*Comment ,err error) {
 	return replies,err
 }
 
-func DeleteReply(rid string) error  {
+func DeleteReply(rid,tid string) error  {
 	ridNum,err:=strconv.ParseInt(rid,10,64)
 	if err!=nil {
 		return err
 	}
 
-	o:=orm.NewOrm()
+	var tidNum int64
 
+	o:=orm.NewOrm()
 	reply:=&Comment{Id:ridNum}
+
+	if o.Read(reply)==nil {
+		tidNum=reply.Tid
+		_,err=o.Delete(reply)
+		if err!=nil {
+			return err
+		}
+	}
+	replies := make([]*Comment,0)
+	qs:=o.QueryTable("comment")
+	_,err=qs.Filter("tid",tidNum).OrderBy("-Created").All(&replies)
+	if err!=nil{
+		return err
+	}
+
+	topic:= &Topic{Id:tidNum}
+	if o.Read(topic) == nil {
+		if int64(len(replies))==0 {
+			topic.ReplyTime=time.Date(1970,1,1,0,0,0,0,time.UTC)
+			topic.ReplyCount=0
+			_,err=o.Update(topic)
+			return err
+		}
+		topic.ReplyTime=replies[0].Created
+		topic.ReplyCount=int64(len(replies))
+		_,err=o.Update(topic)
+	}
+
+/*
+	tidNum,err=strconv.ParseInt(tid,10,64)
+	if err!=nil {
+		return err
+	}
+
 	_,err=o.Delete(reply)
+
+	fmt.Println(tidNum)
+
+	topic:=new(Topic)
+	qs:=o.QueryTable("topic")
+	err=qs.Filter("id",tidNum).One(topic)
+	if err!=nil{
+		return err
+	}
+
+	topic.ReplyCount--
+	topic.ReplyTime=time.Now()
+	_,err=o.Update(topic)
+*/
 	return err
 
 }

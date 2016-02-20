@@ -11,10 +11,27 @@
 <br><br>
 
 <div class="container">
+    {{$label := .Labels}}
+    {{with .Topic}}
+    <h1>{{.Title}}<small>{{.Category}}</small></h1>
+    <h5>
+        {{range $label}}
+            <a href="/?label={{.}}">{{.}}</a>
+        {{end}}
+    </h5>
+    {{.Content}}
+    <h5>文章附件：<a href="/attachment/{{.Attachment}}">{{.Attachment}}</a> </h5>
+    {{end}}
+</div>
+
+<!--
+<div class="container">
     <h1>{{.Topic.Title}}<a href="/topic/modify?tid={{.Tid}}" class="btn btn-default">修改文章</a>
     </h1>
     {{.Topic.Content}}
 </div>
+-->
+
 <div class="container">
     {{$tid := .Topic.Id}}
     {{$IsLogin := .IsLogin}}
